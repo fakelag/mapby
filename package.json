@@ -1,0 +1,31 @@
+{
+  "name": "mapby",
+  "version": "0.0.1",
+  "description": "Typescript promise concurrency utility",
+  "main": "index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fakelag/mapby.git"
+  },
+  "keywords": [
+    "map",
+    "concurrency",
+    "promise"
+  ],
+  "author": "fakelag",
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/fakelag/mapby/issues"
+  },
+  "homepage": "https://github.com/fakelag/mapby#readme",
+  "devDependencies": {
+    "tsup": "^8.1.0",
+    "typescript": "^5.4.5"
+  }
+}
