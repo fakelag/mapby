@@ -2,7 +2,7 @@
   "name": "mapby",
   "version": "0.0.1",
   "description": "Typescript promise concurrency utility",
-  "main": "index.js",
+  "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
