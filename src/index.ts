@@ -1,3 +1,5 @@
+import timersPromises from 'node:timers/promises';
+
 type MapByOptions = {
     concurrency: number;
     abortOnError?: boolean;
@@ -21,7 +23,7 @@ export const mapBy = async <E extends any, R, I>(
             }
             const index = counter++;
             try {
-                // @todo - delay execution to next tick
+                await timersPromises.setImmediate();
                 result[index] = await predicate(vec[index]);
             } catch (err: any) {
                 (result[index] as any) = undefined;
