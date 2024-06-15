@@ -1,57 +1,48 @@
-var __async = (__this, __arguments, generator) => {
-  return new Promise((resolve, reject) => {
-    var fulfilled = (value) => {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    var rejected = (value) => {
-      try {
-        step(generator.throw(value));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
-    step((generator = generator.apply(__this, __arguments)).next());
-  });
-};
-
-// src/index.ts
+// src/mapBy.ts
 import timersPromises from "timers/promises";
-var mapBy = (vec, options, predicate, onErr) => __async(void 0, null, function* () {
+var mapBy = async (vec, options, predicate, onErr) => {
+  var _a;
   let counter = 0;
   let aborted = false;
-  const pending = Array(options.concurrency);
+  const totalRetryCount = (_a = options.retries) != null ? _a : 0;
+  const numWorkers = Math.min(options.concurrency, vec.length);
+  const pending = Array(numWorkers);
   const result = Array(vec.length);
-  const next = () => __async(void 0, null, function* () {
-    while (counter < vec.length) {
-      if (aborted) {
-        break;
-      }
-      const index = counter++;
+  const next = async () => {
+    let index = counter++;
+    let retriesRemaining = totalRetryCount;
+    while (index < vec.length) {
       try {
-        yield timersPromises.setImmediate();
-        result[index] = yield predicate(vec[index]);
+        if (!options.noDefer) {
+          await timersPromises.setImmediate();
+        }
+        if (aborted) {
+          break;
+        }
+        result[index] = await predicate(vec[index], index);
+        index = counter++;
+        retriesRemaining = totalRetryCount;
       } catch (err) {
-        result[index] = void 0;
+        if (retriesRemaining-- > 0) {
+          continue;
+        }
         onErr == null ? void 0 : onErr(err, vec[index], index);
         if (options.abortOnError) {
           aborted = true;
           throw err;
         }
+        result[index] = void 0;
+        index = counter++;
+        retriesRemaining = totalRetryCount;
       }
     }
-  });
-  const workers = Math.min(options.concurrency, vec.length);
-  for (let i = 0; i < workers; ++i) {
+  };
+  for (let i = 0; i < numWorkers; ++i) {
     pending.push(next());
   }
-  yield Promise.all(pending);
+  await Promise.all(pending);
   return result;
-});
+};
 export {
   mapBy
 };
