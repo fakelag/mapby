@@ -26,6 +26,35 @@ describe('mapBy', () => {
     },
   );
 
+  it('uses up to and no less than concurrency number of workers when mapping', async () => {
+    const promises = range(inputs.length).map(async (_, n) => {
+      const inp = inputs[n];
+      const concurrency = 5;
+      const numConcurrentInvocations = Math.min(concurrency, inp.length);
+      let activeInvocations = 0;
+      let maxActiveInvocations = 0;
+
+      const result = await mapBy(inp, { concurrency }, async (item, index) => {
+        ++activeInvocations;
+        if (activeInvocations > maxActiveInvocations) {
+          maxActiveInvocations = activeInvocations;
+        }
+        return new Promise((resolve) =>
+          setTimeout(() => {
+            --activeInvocations;
+            resolve(`${item * 2}-${index}`);
+          }, 100),
+        );
+      });
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(inp.length);
+      expect(maxActiveInvocations).toBe(numConcurrentInvocations);
+      inp.forEach((val, i) => expect(result[i]).toBe(`${val * 2}-${i}`));
+    });
+    await Promise.all(promises);
+  });
+
   it.each([1, 2, 5, 10, 20])(
     'maps a set of inputs to outputs when elements take different amounts of time to process (concurrency %i)',
     async (concurrency) => {
