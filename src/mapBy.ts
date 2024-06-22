@@ -1,62 +1,91 @@
-import timersPromises from 'node:timers/promises';
+import { defer } from './internal/defer';
 
 type MapByOptions<AoE = boolean | undefined> = {
     concurrency: number;
     abortOnError?: AoE;
-    noDefer?: boolean;
     retries?: number;
 };
 
 export const mapBy = async <E extends any, R, I, O extends MapByOptions>(
     vec: I[],
     options: O,
-    predicate: (item: I, index: number) => Promise<R>,
+    predicate: (item: I, index: number) => Promise<R> | R,
     onErr?: (err: E, item: I, index: number) => void,
 ): Promise<Array<R | (O['abortOnError'] extends true ? never : undefined)>> => {
-    let counter = 0;
+    if (options.concurrency <= 0) {
+        throw new Error('concurrency must be >= 1')
+    }
+
+    if (typeof options.retries === 'number' && options.retries < 0) {
+        throw new Error('retries must be >= 0')
+    }
+
+    if (typeof defer !== 'function') {
+        throw new Error('defer is not supported on your platform')
+    }
+
+    if (vec.length === 0) {
+        return [];
+    }
+
+    let counter = -1;
     let aborted = false;
 
     const totalRetryCount = options.retries ?? 0;
     const numWorkers = Math.min(options.concurrency, vec.length);
-    const pending: Promise<void>[] = Array(numWorkers);
     const result: Array<R> = Array(vec.length);
 
-    const next = async () => {
-        let index = counter++;
-        let retriesRemaining = totalRetryCount;
-        while (index < vec.length) {
-            try {
-                if (!options.noDefer) {
-                    await timersPromises.setImmediate();
-                }
-                if (aborted) {
-                    break;
-                }
-                result[index] = await predicate(vec[index], index);
-                index = counter++;
-                retriesRemaining = totalRetryCount
-            } catch (err: any) {
-                if (retriesRemaining-- > 0) {
-                    continue;
-                }
-                onErr?.(err, vec[index], index);
+    const next = async (index: number, retryCount: number, done: (err?: E) => void) => {
+        if (aborted) {
+            done();
+            return;
+        }
 
-                if (options.abortOnError) {
-                    aborted = true;
-                    throw err;
-                }
-
-                (result[index] as any) = undefined;
-                index = counter++;
-                retriesRemaining = totalRetryCount;
+        try {
+            result[index] = await predicate(vec[index], index);
+        } catch (err: any) {
+            if (retryCount > 0) {
+                defer(next, index, retryCount - 1, done);
+                return;
             }
+
+            onErr?.(err, vec[index], index);
+
+            if (options.abortOnError) {
+                aborted = true;
+                done(err);
+                return;
+            }
+
+            (result[index] as any) = undefined;
+        }
+
+        let nextIndex = ++counter;
+        if (nextIndex < vec.length) {
+            defer(next, nextIndex, totalRetryCount, done);
+        } else {
+            done();
         }
     };
 
-    for (let i = 0; i < numWorkers; ++i) {
-        pending.push(next());
-    }
+    await new Promise<void>((resolve, reject) => {
+        let active = numWorkers;
+        let error: E | undefined;
 
-    await Promise.all(pending);
+        const done = (err?: E) => {
+            if (err && error === undefined) {
+                error = err;
+            }
+            if (--active === 0) {
+                if (error) reject(error);
+                else resolve();
+            }
+        };
+
+        for (let i = 0; i < numWorkers; ++i) {
+            defer(next, ++counter, totalRetryCount, done);
+        }
+    });
+
     return result;
 };

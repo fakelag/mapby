@@ -3,9 +3,10 @@ import { range } from './testUtils';
 
 describe('mapBy', () => {
     const input0 = range(0);
+    const input1 = range(1);
     const input10 = range(10);
     const input100 = range(100);
-    const inputs = [input0, input10, input100];
+    const inputs = [input0, input1, input10, input100];
 
     it.each([1, 2, 5, 10, 20])('maps a set of inputs to outputs (concurrency %i)', async (concurrency) => {
         const promises = range(inputs.length).map(async (_, n) => {
@@ -17,6 +18,23 @@ describe('mapBy', () => {
         });
         await Promise.all(promises);
     });
+
+    it.each
+        ([1, 2, 5, 10, 20])
+        ('maps a set of inputs to outputs when elements take different amounts of time to process (concurrency %i)',
+        async (concurrency) => {
+            const promises = range(inputs.length).map(async (_, n) => {
+                const inp = inputs[n];
+                const result = await mapBy(inp, { concurrency }, async (item, index) => {
+                    await new Promise((resolve) => setTimeout(resolve, item % 10));
+                    return `${item*2}-${index}`;
+                });
+                expect(result).toBeDefined();
+                expect(result).toHaveLength(inp.length);
+                inp.forEach((val, i) => expect(result[i]).toBe(`${val*2}-${i}`));
+            });
+            await Promise.all(promises);
+        });
 
     it.each([1, 2, 5, 10, 20])('aborts mapping on error when using abortOnError (concurrency %i)', async (concurrency) => {
         const inp = input10;
@@ -96,14 +114,16 @@ describe('mapBy', () => {
         });
     });
 
-    it.each([1, 2, 5, 10, 20])('maps a set of inputs to outputs with noDefer enabled (concurrency %i)', async (concurrency) => {
-        const promises = range(inputs.length).map(async (_, n) => {
-            const inp = inputs[n];
-            const result = await mapBy(inp, { concurrency, noDefer: true }, async (item, index) => `${item*2}-${index}`);
-            expect(result).toBeDefined();
-            expect(result).toHaveLength(inp.length);
-            inp.forEach((val, i) => expect(result[i]).toBe(`${val*2}-${i}`));
-        });
-        await Promise.all(promises);
+    it('throws reasonable errors when calling mapBy with invalid settings', async () => {
+        const inp = input10;
+
+        await expect(mapBy(inp, { concurrency: 0 }, async (item, index) => `${item*2}-${index}`))
+            .rejects.toThrow('concurrency must be >= 1');
+
+        await expect(mapBy(inp, { concurrency: -1 }, async (item, index) => `${item*2}-${index}`))
+            .rejects.toThrow('concurrency must be >= 1');
+
+        await expect(mapBy(inp, { retries: -1, concurrency: 1 }, async (item, index) => `${item*2}-${index}`))
+            .rejects.toThrow('retries must be >= 0');
     });
 });
