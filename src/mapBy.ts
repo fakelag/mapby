@@ -49,7 +49,11 @@ export const mapBy = async <E extends any, R, I, O extends MapByOptions>(
                 return;
             }
 
-            onErr?.(err, vec[index], index);
+            if (onErr) {
+                try {
+                    onErr(err, vec[index], index);
+                } catch {}
+            }
 
             if (options.abortOnError) {
                 aborted = true;
