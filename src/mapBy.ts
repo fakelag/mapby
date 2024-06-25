@@ -1,10 +1,5 @@
+import { MapByOptions, validateMapByOptions } from './types';
 import { defer } from './internal/defer';
-
-type MapByOptions<AoE = boolean | undefined> = {
-  concurrency: number;
-  abortOnError?: AoE;
-  retries?: number;
-};
 
 export const mapBy = async <E, R, I, O extends MapByOptions>(
   vec: I[],
@@ -12,13 +7,7 @@ export const mapBy = async <E, R, I, O extends MapByOptions>(
   predicate: (item: I, index: number) => Promise<R> | R,
   onErr?: (err: E, item: I, index: number) => void,
 ): Promise<Array<R | (O['abortOnError'] extends true ? never : undefined)>> => {
-  if (options.concurrency <= 0) {
-    throw new Error('concurrency must be >= 1');
-  }
-
-  if (typeof options.retries === 'number' && options.retries < 0) {
-    throw new Error('retries must be >= 0');
-  }
+  validateMapByOptions(options);
 
   if (typeof defer !== 'function') {
     throw new Error('defer is not supported on your platform');

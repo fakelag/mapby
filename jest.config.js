@@ -5,4 +5,5 @@ module.exports = {
   testEnvironment: 'node',
   randomize: true,
   testTimeout: 60 * 1000,
+  setupFilesAfterEnv: ['jest-expect-message'],
 };
